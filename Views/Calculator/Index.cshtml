@@ -1,0 +1,145 @@
+@{
+    Layout = "_Layout";
+}
+
+<div class="calculator-container">
+    <!-- <h1>Calculator</h1> -->
+    <input type="text" id="display" name="expression" class="form-control" placeholder="0" />
+
+    <div class="button-grid">
+        <button type="button" onclick="deleteLast()">&#8592;</button>
+        <button type="button" onclick="clearDisplay()">C</button>
+        <button type="button" onclick="appendToDisplay('%')">%</button>
+        <button type="button" onclick="appendToDisplay('/')">/</button>
+        <button type="button" onclick="appendToDisplay('7')">7</button>
+        <button type="button" onclick="appendToDisplay('8')">8</button>
+        <button type="button" onclick="appendToDisplay('9')">9</button>
+        <button type="button" onclick="appendToDisplay('*')">*</button>
+        <button type="button" onclick="appendToDisplay('4')">4</button>
+        <button type="button" onclick="appendToDisplay('5')">5</button>
+        <button type="button" onclick="appendToDisplay('6')">6</button>
+        <button type="button" onclick="appendToDisplay('-')">-</button>
+        <button type="button" onclick="appendToDisplay('1')">1</button>
+        <button type="button" onclick="appendToDisplay('2')">2</button>
+        <button type="button" onclick="appendToDisplay('3')">3</button>
+        <button type="button" onclick="appendToDisplay('+')">+</button>
+        <button type="button" onclick="toggleSign()">+/-</button>
+        <button type="button" onclick="appendToDisplay('0')">0</button>
+        <button type="button" onclick="appendToDisplay('.')">.</button>
+        <button type="button" class="equals" onclick="calculate()">=</button>
+    </div>
+</div>
+<script>
+    const display = document.getElementById('display');
+    let isError = false; 
+
+    function appendToDisplay(value) {
+        // If an error is showing, clear it and unlock before adding the button value
+        if (isError) {
+            clearDisplay();
+        }
+
+        const operators = ['+', '-', '*', '/', '%'];
+        const lastChar = display.value.slice(-1);
+
+        if (display.value === "" && ['*', '/', '%', '+'].includes(value)) return;
+        if (operators.includes(value) && operators.includes(lastChar)) return;
+
+        display.value += value;
+    }
+
+    display.addEventListener('input', function() {
+        // If the user tries to type while an error is showing
+        if (isError) {
+            const typedChar = this.value.slice(-1); // Get the character they just tried to type
+            clearDisplay();                         // Reset everything
+            this.value = typedChar;                 // Put that character in as the new start
+        }
+
+        // Standard filters
+        this.value = this.value.replace(/[^0-9\+\-\*\/\%\.]/g, '');
+        
+        const doubleOperatorRegex = /[\+\-\*\/\%]{2,}/g;
+        if (doubleOperatorRegex.test(this.value)) {
+            this.value = this.value.replace(doubleOperatorRegex, (match) => match[0]);
+        }
+    });
+
+    function clearDisplay() {
+        display.value = "";
+        isError = false;
+        display.readOnly = false; // Always unlock when clearing
+    }
+
+    display.addEventListener('keydown', function(event) {
+        // If an error is showing and they hit any key, unlock first
+        if (isError && event.key !== "Enter") {
+            clearDisplay();
+        }
+
+        if (event.key === "Enter") {
+            event.preventDefault();
+            calculate();
+        }
+    });
+
+    function deleteLast() {
+        if (isError) {
+            clearDisplay();
+        } else {
+            display.value = display.value.slice(0, -1);
+        }
+    }
+
+    async function calculate() {
+        if (isError) {
+            clearDisplay();
+            return;
+        }
+
+        let expression = display.value;
+        if (!expression) return;
+
+        // Frontend check for div by zero
+        if (/\/0(?!\.)|%0(?!\.)/.test(expression)) {
+            display.value = "Cannot divide by zero";
+            isError = true;
+            display.readOnly = true; // Lock the message
+            return;
+        }
+
+        const operators = ['+', '-', '*', '/', '%'];
+        while (operators.includes(expression.slice(-1))) {
+            expression = expression.slice(0, -1);
+        }
+        display.value = expression;
+
+        try {
+            const response = await fetch(`/Calculator/Calculate?expression=${encodeURIComponent(expression)}`);
+            const resultText = await response.text();
+        
+            if (response.ok) {
+                display.value = resultText;
+                isError = false;
+                display.readOnly = false;
+            } else {
+                display.value = resultText; 
+                isError = true;
+                display.readOnly = true; // Lock the "Invalid" message
+            }
+        } catch (error) {
+            display.value = "Error";
+            isError = true;
+            display.readOnly = true;
+        }
+    }
+
+    function toggleSign() {                     
+        if (display.value === "" || isError) return;
+        if (display.value.startsWith("-")) {
+            display.value = display.value.substring(1);
+        } else {
+            display.value = "-" + display.value;
+        }
+    }
+</script>
